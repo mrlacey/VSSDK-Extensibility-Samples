@@ -1,4 +1,4 @@
-//***************************************************************************
+﻿//***************************************************************************
 //
 //    Copyright (c) Microsoft Corporation. All rights reserved.
 //    This code is licensed under the Visual Studio SDK license terms.
@@ -10,7 +10,7 @@
 //***************************************************************************
 
 // This controls whether the adornments are positioned next to the hex values or instead of them.
-#define HIDING_TEXT
+//#define HIDING_TEXT
 
 using System;
 using System.Collections.Generic;
