@@ -190,21 +190,23 @@ namespace IntraTextAdornmentSample
                 if (spans.IntersectsWith(new NormalizedSnapshotSpanCollection(ar.Key)))
                     toRemove.Add(ar.Key);
 
+            List<SnapshotSpan> ensureVisible = new List<SnapshotSpan>();
+
             foreach (var spanDataPair in GetAdornmentData(spans).Distinct(new Comparer()))
             {
                 // Look up the corresponding adornment or create one if it's new.
                 TAdornment adornment;
-                SnapshotSpan snapshotSpan = spanDataPair.Item1;
+                SnapshotSpan adornmentLocation = spanDataPair.Item1;
                 PositionAffinity? affinity = spanDataPair.Item2;
                 TData adornmentData = spanDataPair.Item3;
-                if (adornmentCache.TryGetValue(snapshotSpan, out adornment))
+                if (adornmentCache.TryGetValue(adornmentLocation, out adornment))
                 {
                     if (UpdateAdornment(adornment, adornmentData))
-                        toRemove.Remove(snapshotSpan);
+                        toRemove.Remove(adornmentLocation);
                 }
                 else
                 {
-                    adornment = CreateAdornment(adornmentData, snapshotSpan);
+                    adornment = CreateAdornment(adornmentData, adornmentLocation);
 
                     if (adornment == null)
                         continue;
@@ -219,14 +221,39 @@ namespace IntraTextAdornmentSample
                     // can help avoid the size change and the resulting unnecessary re-format.
                     adornment.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
 
-                    adornmentCache.Add(snapshotSpan, adornment);
+                    adornmentCache.Add(adornmentLocation, adornment);
+
+                    // If the adornment is being added outside the changed area (span), keep a record of it's location
+                    // We need this to ensure it is shown.
+                    // It won't be made visible by default as it's not in a place the editor will automatically check for visual updates
+                    if (!spans.IntersectsWith(new NormalizedSnapshotSpanCollection(adornmentLocation)))
+                    {
+                        ensureVisible.Add(adornmentLocation);
+                    }
                 }
 
-                yield return new TagSpan<IntraTextAdornmentTag>(snapshotSpan, new IntraTextAdornmentTag(adornment, null, affinity));
+                yield return new TagSpan<IntraTextAdornmentTag>(adornmentLocation, new IntraTextAdornmentTag(adornment, null, affinity));
             }
 
             foreach (var snapshotSpan in toRemove)
                 adornmentCache.Remove(snapshotSpan);
+
+            // Ensure any adornments that were added outside the visible area are made visible
+            foreach (var newAdornment in ensureVisible)
+            {
+                InvalidateSpans(new[] { newAdornment });
+            }
+
+            // Ensure anything removed is reflected in the UI
+            foreach (var knownAdornment in adornmentCache)
+            {
+                // Does the visible adornment have a corresponding data tag?
+                if (!GetAdornmentData(new NormalizedSnapshotSpanCollection(knownAdornment.Key)).Any())
+                {
+                    // If not, force the UI to refresh the location of the displayed adornment (to remove it)
+                    InvalidateSpans(new[] { knownAdornment.Key });
+                }
+            }
         }
 
         public event EventHandler<SnapshotSpanEventArgs> TagsChanged;
